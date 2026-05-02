@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إدارة المرتبات</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>💰 رواتب شهر <span id="currentMonth"></span></h2>
+            <a href="/dashboard" class="btn btn-secondary">العودة للرئيسية</a>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-body">
+                <table class="table table-hover text-center align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>اسم الموظف</th>
+                            <th>سعر الساعة</th>
+                            <th>الساعات</th>
+                            <th>إجازات (مقبولة)</th>
+                            <th>الأساسي</th>
+                            <th>حوافز (+)</th>
+                            <th>خصومات (-)</th>
+                            <th>الصافي</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in salaries %}
+                        <tr>
+                            <td><strong>{{ s['name'] }}</strong></td>
+                            <td>{{ s['hourly_rate'] }} ج</td>
+                            <td><span class="badge bg-info text-dark">{{ s['total_hours'] | round(2) }} س</span></td>
+
+                            <td>
+                                {% if s['approved_leaves'] > 0 %}
+                                <span class="badge bg-warning text-dark">{{ s['approved_leaves'] }} يوم</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="base-salary" data-base="{{ s['expected_salary'] }}">{{ s['expected_salary'] | round(2) }} ج</td>
+
+                            <td style="width: 120px;">
+                                <input type="number" class="form-control bonus-input" placeholder="0" min="0" oninput="calculateNet(this)">
+                            </td>
+                            <td style="width: 120px;">
+                                <input type="number" class="form-control deduction-input" placeholder="0" min="0" oninput="calculateNet(this)">
+                            </td>
+
+                            <td><strong class="text-success fs-5 net-salary">{{ s['expected_salary'] | round(2) }} ج</strong></td>
+
+                            <td>
+                                <button onclick="saveSalary('{{ s['id'] }}', '{{ s['total_hours'] }}', '{{ s['hourly_rate'] }}', this)" class="btn btn-success btn-sm w-100 shadow-sm">إصدار</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+        document.getElementById("currentMonth").innerText = months[new Date().getMonth()];
+
+        function calculateNet(element) {
+            let row = element.closest('tr');
+            let base = parseFloat(row.querySelector('.base-salary').getAttribute('data-base')) || 0;
+            let bonus = parseFloat(row.querySelector('.bonus-input').value) || 0;
+            let deduction = parseFloat(row.querySelector('.deduction-input').value) || 0;
+
+            let net = base + bonus - deduction;
+            if (net < 0) net = 0;
+            row.querySelector('.net-salary').innerText = net.toFixed(2) + " ج";
+        }
+        function saveSalary(empId, totalHours, hourlyRate, btn) {
+            let row = btn.closest('tr');
+            let basic = parseFloat(row.querySelector('.base-salary').getAttribute('data-base')) || 0;
+            let bonus = parseFloat(row.querySelector('.bonus-input').value) || 0;
+            let deduction = parseFloat(row.querySelector('.deduction-input').value) || 0;
+            let net = parseFloat(row.querySelector('.net-salary').innerText) || 0;
+
+            btn.innerHTML = "...";
+            btn.disabled = true;
+
+            fetch('/admin/save_salary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    emp_id: empId,
+                    total_hours: totalHours,
+                    hourly_rate: hourlyRate,
+                    basic: basic,
+                    bonus: bonus,
+                    deduction: deduction,
+                    net: net
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.status === "success") {
+                        btn.innerHTML = "تم ✔️";
+                        btn.classList.replace('btn-success', 'btn-secondary');
+                        row.querySelector('.bonus-input').disabled = true;
+                        row.querySelector('.deduction-input').disabled = true;
+                    } else {
+                        btn.innerHTML = "إصدار";
+                        btn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    alert("حدث خطأ!");
+                    btn.innerHTML = "إصدار";
+                    btn.disabled = false;
+                });
+        }
+    </script>
+</body>
+</html>

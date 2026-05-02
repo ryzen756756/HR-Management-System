@@ -1,0 +1,141 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>بوابة الموظف - تسجيل الحضور</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: #f0f2f5;
+            padding-top: 80px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .card {
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .btn-payslip {
+            background-color: #0dcaf0;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: 0.3s;
+        }
+
+            .btn-payslip:hover {
+                background-color: #0baccc;
+                color: white;
+            }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width: 500px;">
+        <div class="card p-4 text-center">
+            <div class="mb-4 text-primary">
+                <i class="fa-solid fa-fingerprint fa-5x"></i>
+            </div>
+            <h3>أهلاً بك يا {{ name }}</h3>
+            <p class="text-muted mb-4">تسجيل الحضور والانصراف الذكي</p>
+
+            <div class="mb-3">
+                <video id="camera" width="100%" autoplay playsinline style="border-radius: 10px; background: #000; border: 2px solid #0d6efd;"></video>
+                <canvas id="canvas" style="display:none;"></canvas>
+            </div>
+
+            <button onclick="getLocation()" id="btn-check" class="btn btn-primary btn-lg w-100 py-3 mb-3 shadow">
+                <i class="fa-solid fa-location-crosshairs"></i> تسجيل الحضور (GPS)
+            </button>
+
+            <button onclick="checkOut()" class="btn btn-danger btn-lg w-100 py-3 mb-3 shadow">
+                <i class="fa-solid fa-person-walking-arrow-right"></i> تسجيل الانصراف (GPS)
+            </button>
+
+            <div class="row g-2">
+                <div class="col-6">
+                    <a href="/my_payslips" class="btn btn-payslip w-100 py-3 shadow">
+                        <i class="fa-solid fa-file-invoice-dollar"></i> المرتبات
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="/request_leave" class="btn btn-warning w-100 py-3 shadow text-dark">
+                        <i class="fa-solid fa-umbrella-beach"></i> الإجازات
+                    </a>
+                </div>
+            </div>
+
+            <a href="/company_feed" class="btn btn-outline-primary w-100 py-3 mt-3 shadow">
+                <i class="fa-solid fa-comments"></i> أخبار وتفاعلات الشركة
+            </a>
+
+            <div id="msg" class="alert d-none mt-3"></div>
+
+            <hr>
+            <a href="/logout" class="btn btn-link text-danger">تسجيل الخروج</a>
+        </div>
+    </div>
+
+    <script>
+        // --- أكواد الكاميرا والـ GPS ---
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+            .then(stream => { document.getElementById('camera').srcObject = stream; })
+            .catch(err => console.error("مشكلة في الكاميرا:", err));
+
+        function getLocation() {
+            const msgBox = document.getElementById('msg');
+            msgBox.classList.remove('d-none', 'alert-success', 'alert-danger');
+            msgBox.classList.add('alert-info');
+            msgBox.innerText = "جاري تحديد موقعك... 📍";
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    let video = document.getElementById('camera');
+                    let canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    let photoData = canvas.toDataURL('image/jpeg');
+
+                    fetch('/check_in', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude,
+                            photo: photoData
+                        })
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            msgBox.classList.remove('alert-info');
+                            msgBox.classList.add(data.message.includes('✅') ? 'alert-success' : 'alert-danger');
+                            msgBox.innerText = data.message;
+                        });
+                }, (err) => {
+                    msgBox.classList.replace('alert-info', 'alert-danger');
+                    msgBox.innerText = "خطأ في تحديد الموقع!";
+                }, { enableHighAccuracy: true });
+            }
+        }
+
+        function checkOut() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    fetch('/check_out', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                    })
+                        .then(res => res.json())
+                        .then(data => alert(data.message));
+                });
+            }
+        }
+    </script>
+</body>
+</html>

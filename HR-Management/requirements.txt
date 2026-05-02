@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+SQLAlchemy
+python-dotenv
+PyMySQL
+psycopg[binary]
+numpy

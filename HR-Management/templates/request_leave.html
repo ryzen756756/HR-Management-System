@@ -1,0 +1,23 @@
+﻿
+<body class="bg-light" dir="rtl">
+    <div class="container mt-5" style="max-width: 600px;">
+        <div class="card shadow p-4">
+            <h2 class="text-center mb-4">🌴 طلب إجازة جديدة</h2>
+            <form method="POST">
+                <label>نوع الإجازة:</label>
+                <select name="leave_type" class="form-select mb-3">
+                    <option value="سنوية">سنوية</option>
+                    <option value="مرضية">مرضية</option>
+                    <option value="إذن خروج">إذن خروج</option>
+                </select>
+                <div class="row">
+                    <div class="col"><label>من تاريخ:</label><input type="date" name="start_date" class="form-control mb-3" required></div>
+                    <div class="col"><label>إلى تاريخ:</label><input type="date" name="end_date" class="form-control mb-3" required></div>
+                </div>
+                <label>السبب:</label>
+                <textarea name="reason" class="form-control mb-4" rows="3"></textarea>
+                <button type="submit" class="btn btn-primary w-100">إرسال الطلب 🚀</button>
+            </form>
+        </div>
+    </div>
+</body>

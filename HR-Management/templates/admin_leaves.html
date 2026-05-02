@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>طلبات الإجازات الواردة</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }
+        h2 {
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: right;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        /* تلوين حالة الطلب */
+        .status-Pending { color: #ff9800; font-weight: bold; }
+        .status-Approved { color: #4CAF50; font-weight: bold; }
+        .status-Rejected { color: #f44336; font-weight: bold; }
+
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+        }
+        .btn-approve { background-color: #4CAF50; }
+        .btn-reject { background-color: #f44336; }
+    </style>
+</head>
+<body>
+
+    <h2>📋 طلبات الإجازات الواردة</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>اسم الموظف</th>
+                <th>نوع الإجازة</th>
+                <th>تاريخ البداية</th>
+                <th>تاريخ النهاية</th>
+                <th>السبب</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr>
+                <td>{{ req['name'] }}</td>
+                <td>{{ req['leave_type'] }}</td>
+                <td>{{ req['start_date'] }}</td>
+                <td>{{ req['end_date'] }}</td>
+                <td>{{ req['reason'] }}</td>
+                <td class="status-{{ req['status'] }}">{{ req['status'] }}</td>
+                <td>
+                   {% if req['status'] == 'Pending' %}
+                      <form action="{{ url_for('update_leave_status', req_id=req['id']) }}" method="POST" style="display:inline;">
+                           <input type="hidden" name="status" value="Approved">
+                           <button type="submit" class="btn btn-approve">قبول</button>
+                       </form>
+
+                       <form action="{{ url_for('update_leave_status', req_id=req['id']) }}" method="POST" style="display:inline;">
+                             <input type="hidden" name="status" value="Rejected">
+                             <button type="submit" class="btn btn-reject">رفض</button>
+                        </form>
+                    {% else %}
+                        تم اتخاذ قرار
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" style="text-align: center;">لا توجد طلبات إجازة واردة حالياً.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

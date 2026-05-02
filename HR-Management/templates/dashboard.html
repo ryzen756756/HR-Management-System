@@ -1,0 +1,165 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة التحكم - HR Smart</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .sidebar {
+            height: 100vh;
+            background-color: #2c3e50;
+            color: white;
+            padding-top: 20px;
+            position: fixed;
+            right: 0;
+            width: 250px;
+            z-index: 1000;
+        }
+
+            .sidebar h4 {
+                text-align: center;
+                margin-bottom: 30px;
+                color: #fff;
+            }
+
+            .sidebar a {
+                color: #c2c7d0;
+                text-decoration: none;
+                padding: 12px 20px;
+                display: block;
+                transition: 0.3s;
+                font-size: 15px;
+            }
+
+                .sidebar a:hover, .sidebar a.active {
+                    background-color: #6f42c1;
+                    color: white;
+                    border-right: 4px solid white;
+                }
+
+        .main-content {
+            margin-right: 250px;
+            padding: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-right: 5px solid #6f42c1;
+            margin-bottom: 20px;
+        }
+
+        .action-card {
+            transition: transform 0.2s;
+            border: none;
+            border-radius: 12px;
+        }
+
+            .action-card:hover {
+                transform: translateY(-5px);
+            }
+
+        .icon-box {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h4><i class="fa-solid fa-users-gear"></i> HR Smart</h4>
+        <a href="/dashboard" class="active"><i class="fa-solid fa-house"></i> الرئيسية</a>
+        <a href="/employees"><i class="fa-solid fa-users"></i> إدارة الموظفين</a>
+        <a href="/set_zone"><i class="fa-solid fa-location-dot"></i> إعدادات النطاق الجغرافي</a>
+        <a href="/admin/attendance_logs"><i class="fa-solid fa-clipboard-list"></i> سجلات الحضور</a>
+        <hr class="mx-3 my-4">
+        <a href="/admin/payroll" class="btn btn-warning mx-2 mb-2 text-dark">💰 إدارة المرتبات</a>
+        <a href="/admin/leaves" class="btn btn-dark mx-2 mb-2">📋 إدارة الإجازات</a>
+        <a href="/company_feed" class="btn btn-primary mx-2 mb-2"><i class="fa-solid fa-comments"></i> أخبار الشركة</a>
+        <a href="/admin/announcements" class="btn btn-info mx-2 mb-2 text-white">📢 نشر إعلان جديد</a>
+        <a href="/logout" class="text-danger mt-4"><i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج</a>
+    </div>
+
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 shadow-sm rounded">
+            <h4 class="m-0 text-secondary" style="font-weight: bold;">لوحة تحكم المدير</h4>
+            <span class="badge bg-primary fs-6 p-2">أهلاً، {{ admin_name }}</span>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <h5 class="text-muted">إجمالي الموظفين</h5>
+                    <h2>{{ total }} <i class="fa-solid fa-users text-primary float-end"></i></h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="border-right-color: #28a745;">
+                    <h5 class="text-muted">حضور اليوم</h5>
+                    <h2>{{ present }} <i class="fa-solid fa-user-check text-success float-end"></i></h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="border-right-color: #dc3545;">
+                    <h5 class="text-muted">غياب</h5>
+                    <h2>{{ absent }} <i class="fa-solid fa-user-xmark text-danger float-end"></i></h2>
+                </div>
+            </div>
+        </div>
+
+        <h5 class="mt-4 mb-3" style="font-weight: bold;"><i class="fa-solid fa-gears"></i> العمليات السريعة</h5>
+
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card action-card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="icon-box"><i class="fa-solid fa-clipboard-check fa-3x text-success"></i></div>
+                        <h5 class="card-title">سجلات الحضور</h5>
+                        <p class="card-text text-muted small">تقارير الحضور ومواقع الموظفين.</p>
+                        <a href="/admin/attendance_logs" class="btn btn-success w-100">فتح السجلات</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card action-card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="icon-box"><i class="fa-solid fa-user-plus fa-3x text-primary"></i></div>
+                        <h5 class="card-title">الموظفين</h5>
+                        <p class="card-text text-muted small">إضافة، تعديل أو حذف الموظفين.</p>
+                        <a href="/employees" class="btn btn-primary w-100">إدارة الموظفين</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card action-card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="icon-box"><i class="fa-solid fa-map-location-dot fa-3x text-warning"></i></div>
+                        <h5 class="card-title">النطاق الجغرافي</h5>
+                        <p class="card-text text-muted small">تحديد موقع البصمة الذكية.</p>
+                        <a href="/set_zone" class="btn btn-warning text-white w-100">تعديل النطاق</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-2 shadow-sm border-0" style="border-right: 5px solid #0dcaf0 !important;">
+            <div class="d-flex align-items-center">
+                <div class="ms-3"><i class="fa-solid fa-circle-info fa-2x"></i></div>
+                <div>
+                    <h5 class="alert-heading mb-1">نظام النطاق الجغرافي (Geofencing)</h5>
+                    <p class="mb-0">تأكد من تحديث إحداثيات المقر بدقة لضمان عمل البصمة الذكية.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
