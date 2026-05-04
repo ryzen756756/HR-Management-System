@@ -109,7 +109,16 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
         if not session.get('logged_in') or session.get('role') != 'Admin': return redirect(url_for('login'))
         rows = db.session.query(LeaveRequest, Employee).join(Employee, LeaveRequest.user_id == Employee.id).order_by(LeaveRequest.request_date.desc()).all()
         requests = [{"id": req.id, "leave_type": req.leave_type, "start_date": req.start_date, "end_date": req.end_date, "reason": req.reason, "status": req.status, "name": emp.name} for req, emp in rows]
-        return render_template('admin_leaves.html', requests=requests)
+        
+        original_html = render_template('admin_leaves.html', requests=requests)
+        
+        # حقن زرار العودة للرئيسية فوق على الشمال
+        back_btn = f'''
+        <div style="position: absolute; top: 20px; left: 20px; z-index: 9999;">
+            <a href="{url_for('dashboard')}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">🔙 العودة للرئيسية</a>
+        </div>
+        '''
+        return original_html + back_btn
 
     @app.route('/admin/update_leave/<int:req_id>', methods=['POST'])
     def update_leave_status(req_id):
