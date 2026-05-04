@@ -30,20 +30,32 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
             name, username, password = request.form.get('name'), request.form.get('username'), request.form.get('password')
             dept, role, hourly_rate = request.form.get('dept'), request.form.get('role'), request.form.get('hourly_rate') or 0
             photo = request.files.get('photo')
-            if not photo or photo.filename == '': return "يجب رفع صورة الموظف لتعريف البصمة ❌"
+            
+            # حماية ذكية ضد نسيان الصورة
+            if not photo or photo.filename == '': 
+                return '''<script>alert("❌ يجب رفع صورة الموظف لتعريف البصمة!"); window.history.back();</script>'''
+                
             filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{photo.filename}"
             filepath = os.path.join(UPLOAD_FOLDER, filename); photo.save(filepath)
             encoding = get_face_encoding(filepath)
-            if get_face_encoding.__module__ != 'utils' and encoding is None:
+            
+            # حماية ضد الصور الغير واضحة
+            if encoding is None:
                 if os.path.exists(filepath): os.remove(filepath)
-                return "لم يتم التعرف على الوجه في الصورة. ❌"
+                return '''<script>alert("❌ لم يتم التعرف على الوجه في الصورة! يرجى رفع صورة واضحة."); window.history.back();</script>'''
+                
             try:
                 db.session.add(Employee(name=name, username=username, password=password, dept=dept, role=role, photo=filename, face_encoding=json.dumps(encoding.tolist()) if encoding is not None else None, hourly_rate=float(hourly_rate)))
-                db.session.commit(); return redirect(url_for('employees'))
+                db.session.commit()
+                return redirect(url_for('employees'))
             except IntegrityError:
-                db.session.rollback(); return "اسم المستخدم هذا موجود مسبقاً! ❌"
+                db.session.rollback()
+                # الرسالة الذكية لمنع الصفحة البيضاء
+                return '''<script>alert("❌ اسم المستخدم (Username) ده موجود بالفعل لموظف تاني! يرجى اختيار اسم دخول مختلف."); window.history.back();</script>'''
             except Exception as e:
-                db.session.rollback(); return f"حدث خطأ غير متوقع: {str(e)}"
+                db.session.rollback()
+                return f'''<script>alert("❌ حدث خطأ غير متوقع: {str(e)}"); window.history.back();</script>'''
+                
         return render_template('add_employee.html')
 
     @app.route('/delete_employee/<int:id>', methods=['GET', 'POST'])
@@ -51,13 +63,27 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
     @app.route('/delete/<int:id>', methods=['GET', 'POST'])
     def delete_employee(id):
         if session.get('role') != 'Admin': return redirect(url_for('login'))
+        
         emp = db.session.get(Employee, id)
+        
+        # 🛡️ حماية 1: منع الـ Admin من حذف نفسه
+        if emp and emp.id == session.get('user_id'):
+            return '''<script>alert("❌ لا يمكنك حذف حسابك الشخصي!"); window.history.back();</script>'''
+            
+        # 🛡️ حماية 2: منع حذف المدير العام الأساسي (المالك)
+        if emp and emp.username == 'admin':
+            return '''<script>alert("❌ خط أحمر! لا يمكن مسح المدير الأساسي للنظام."); window.history.back();</script>'''
+
         if emp and emp.photo:
             photo_path = os.path.join(UPLOAD_FOLDER, emp.photo)
             if os.path.exists(photo_path):
                 try: os.remove(photo_path)
                 except: pass
-        if emp: db.session.delete(emp); db.session.commit()
+                
+        if emp: 
+            db.session.delete(emp)
+            db.session.commit()
+            
         return redirect(url_for('employees'))
 
     @app.route('/set_zone', methods=['GET', 'POST'])
@@ -95,7 +121,7 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
         
         original_html = render_template('admin_announcements.html', announcements=all_news, news=all_news)
         
-        # التعديل هنا: حقن زرار العودة للرئيسية فوق على الشمال
+        # حقن زرار العودة للرئيسية فوق على الشمال
         back_btn = f'''
         <div style="position: absolute; top: 20px; left: 20px; z-index: 9999;">
             <a href="{url_for('dashboard')}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">🔙 العودة للرئيسية</a>
