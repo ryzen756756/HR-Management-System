@@ -3,7 +3,6 @@ from config import Config
 from models import db, Settings, Employee, Attendance, Announcement, AnnouncementComment, LeaveRequest, PayrollHistory
 import os
 
-# استدعاء المسارات من الملفات المقسمة (Clean Architecture)
 from routes_auth import setup_auth_routes
 from routes_admin import setup_admin_routes
 from routes_employee import setup_employee_routes
@@ -15,7 +14,6 @@ db.init_app(app)
 UPLOAD_FOLDER = os.path.join(app.static_folder, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# تشغيل وتسجيل كل مسارات النظام
 setup_auth_routes(app, db, Employee, UPLOAD_FOLDER)
 setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, PayrollHistory, Announcement, AnnouncementComment, UPLOAD_FOLDER)
 setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest, PayrollHistory, Announcement, AnnouncementComment, UPLOAD_FOLDER)

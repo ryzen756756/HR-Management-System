@@ -12,8 +12,8 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
     def dashboard():
         if session.get('role') != 'Admin': return redirect(url_for('login'))
         today = date.today()
-        total = Employee.query.filter(Employee.role != 'Admin').count()
-        present = db.session.query(Attendance).join(Employee).filter(Attendance.date == today, Employee.role != 'Admin').count()
+        total = Employee.query.filter(Employee.role == 'Employee').count()
+        present = db.session.query(Attendance).join(Employee).filter(Attendance.date == today, Employee.role == 'Employee').count()
         absent = max(total - present, 0)
         return render_template('dashboard.html', total=total, present=present, absent=absent, today=today.isoformat())
 
@@ -31,7 +31,6 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
             dept, role, hourly_rate = request.form.get('dept'), request.form.get('role'), request.form.get('hourly_rate') or 0
             photo = request.files.get('photo')
             
-            # حماية ذكية ضد نسيان الصورة
             if not photo or photo.filename == '': 
                 return '''<script>alert("❌ يجب رفع صورة الموظف لتعريف البصمة!"); window.history.back();</script>'''
                 
@@ -39,7 +38,6 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
             filepath = os.path.join(UPLOAD_FOLDER, filename); photo.save(filepath)
             encoding = get_face_encoding(filepath)
             
-            # حماية ضد الصور الغير واضحة
             if encoding is None:
                 if os.path.exists(filepath): os.remove(filepath)
                 return '''<script>alert("❌ لم يتم التعرف على الوجه في الصورة! يرجى رفع صورة واضحة."); window.history.back();</script>'''
@@ -50,7 +48,6 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
                 return redirect(url_for('employees'))
             except IntegrityError:
                 db.session.rollback()
-                # الرسالة الذكية لمنع الصفحة البيضاء
                 return '''<script>alert("❌ اسم المستخدم (Username) ده موجود بالفعل لموظف تاني! يرجى اختيار اسم دخول مختلف."); window.history.back();</script>'''
             except Exception as e:
                 db.session.rollback()
@@ -66,11 +63,9 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
         
         emp = db.session.get(Employee, id)
         
-        # 🛡️ حماية 1: منع الـ Admin من حذف نفسه
         if emp and emp.id == session.get('user_id'):
             return '''<script>alert("❌ لا يمكنك حذف حسابك الشخصي!"); window.history.back();</script>'''
             
-        # 🛡️ حماية 2: منع حذف المدير العام الأساسي (المالك)
         if emp and emp.username == 'admin':
             return '''<script>alert("❌ خط أحمر! لا يمكن مسح المدير الأساسي للنظام."); window.history.back();</script>'''
 
@@ -121,7 +116,6 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
         
         original_html = render_template('admin_announcements.html', announcements=all_news, news=all_news)
         
-        # حقن زرار العودة للرئيسية فوق على الشمال
         back_btn = f'''
         <div style="position: absolute; top: 20px; left: 20px; z-index: 9999;">
             <a href="{url_for('dashboard')}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">🔙 العودة للرئيسية</a>
@@ -147,7 +141,6 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
         
         original_html = render_template('admin_leaves.html', requests=requests)
         
-        # حقن زرار العودة للرئيسية فوق على الشمال
         back_btn = f'''
         <div style="position: absolute; top: 20px; left: 20px; z-index: 9999;">
             <a href="{url_for('dashboard')}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">🔙 العودة للرئيسية</a>
@@ -169,7 +162,8 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
     def admin_payroll():
         if session.get('role') != 'Admin': return redirect(url_for('login'))
         month_start, next_month_start = month_range()
-        employees = Employee.query.filter_by(role="Employee").order_by(Employee.id).all()
+        
+        employees = Employee.query.filter(Employee.username != 'admin').order_by(Employee.id).all()
         salaries = []
         for emp in employees:
             total_hours = db.session.query(func.coalesce(func.sum(Attendance.work_hours), 0.0)).filter(Attendance.user_id == emp.id, Attendance.date >= month_start, Attendance.date < next_month_start).scalar()
