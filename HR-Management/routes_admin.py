@@ -92,7 +92,16 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
             db.session.add(Announcement(title=request.form.get('title'), message=request.form.get('message'))); db.session.commit()
             return redirect(url_for('add_announcement'))
         all_news = Announcement.query.order_by(Announcement.created_at.desc()).all()
-        return render_template('admin_announcements.html', announcements=all_news, news=all_news)
+        
+        original_html = render_template('admin_announcements.html', announcements=all_news, news=all_news)
+        
+        # التعديل هنا: حقن زرار العودة للرئيسية فوق على الشمال
+        back_btn = f'''
+        <div style="position: absolute; top: 20px; left: 20px; z-index: 9999;">
+            <a href="{url_for('dashboard')}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">🔙 العودة للرئيسية</a>
+        </div>
+        '''
+        return original_html + back_btn
 
     @app.route('/delete_announcement/<int:id>', methods=['GET', 'POST'])
     @app.route('/admin/delete_news/<int:id>', methods=['GET', 'POST'])

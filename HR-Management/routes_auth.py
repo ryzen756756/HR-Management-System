@@ -13,6 +13,7 @@ except ImportError:
 def setup_auth_routes(app, db, Employee, UPLOAD_FOLDER):
     @app.route('/', methods=['GET', 'POST'])
     def login():
+        error_html = ""
         if request.method == 'POST':
             username = request.form.get('username')
             password = request.form.get('password')
@@ -21,12 +22,19 @@ def setup_auth_routes(app, db, Employee, UPLOAD_FOLDER):
                 session.update({'logged_in': True, 'user_id': user.id, 'user_name': user.name, 'role': user.role})
                 if user.role == 'Admin': return redirect(url_for('dashboard'))
                 else: return redirect(url_for('employee_dashboard'))
-            return "خطأ في بيانات الدخول!"
+            
+            # هنا التعديل: هنجهز رسالة خطأ شيك بخلفية حمراء خفيفة تظهر جوه الصفحة
+            error_html = '<div style="color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin-bottom: 15px; border-radius: 5px; text-align: center; font-weight: bold; font-family: Arial;">❌ خطأ في اسم المستخدم أو كلمة المرور!</div>'
             
         original_html = render_template('login.html')
         magic_button = f'''<div style="text-align: center; margin-top: 10px;">
             <a href="{url_for('forgot_password')}" style="color: #666; font-size: 0.85em; text-decoration: none; font-family: Arial;">نسيت كلمة المرور؟ 🔐</a>
         </div>'''
+        
+        # حقن رسالة الخطأ فوق الفورم مباشرة لو المستخدم كتب بيانات غلط
+        if error_html and '<form' in original_html:
+            original_html = original_html.replace('<form', error_html + '<form')
+
         if '</form>' in original_html: return original_html.replace('</form>', magic_button + '</form>')
         return original_html + magic_button
 
