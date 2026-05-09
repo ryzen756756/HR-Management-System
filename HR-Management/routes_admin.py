@@ -12,8 +12,8 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
     def dashboard():
         if session.get('role') != 'Admin': return redirect(url_for('login'))
         today = date.today()
-        total = Employee.query.filter(Employee.role == 'Employee').count()
-        present = db.session.query(Attendance).join(Employee).filter(Attendance.date == today, Employee.role == 'Employee').count()
+        total = Employee.query.filter(Employee.username != 'admin').count()
+        present = db.session.query(Attendance).join(Employee).filter(Attendance.date == today, Employee.username != 'admin').count()
         absent = max(total - present, 0)
         return render_template('dashboard.html', total=total, present=present, absent=absent, today=today.isoformat())
 
@@ -59,7 +59,8 @@ def setup_admin_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pa
     @app.route('/admin/delete_employee/<int:id>', methods=['GET', 'POST'])
     @app.route('/delete/<int:id>', methods=['GET', 'POST'])
     def delete_employee(id):
-        if session.get('role') != 'Admin': return redirect(url_for('login'))
+        if session.get('role') != 'Admin': 
+            return '''<script>alert("🚨 محاولة اختراق مرفوضة! ليس لديك صلاحية لحذف الموظفين."); window.location.href="/";</script>'''
         
         emp = db.session.get(Employee, id)
         
