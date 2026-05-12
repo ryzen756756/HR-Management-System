@@ -20,24 +20,14 @@ setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest, Pay
 
 def init_db():
     db.create_all()
-    
     if db.session.get(Settings, 1) is None:
         db.session.add(Settings(id=1, lat=30.0444, lng=31.2357, radius=20000))
-        
     if Employee.query.filter_by(username="admin").first() is None:
-        db.session.add(
-            Employee(
-                username="admin",
-                password="123",
-                name="المدير العام",
-                dept="الإدارة",
-                role="Admin",
-                hourly_rate=0.0,
-            )
-        )
+        db.session.add(Employee(username="admin", password="123", name="المدير العام", role="Admin", dept="الإدارة", hourly_rate=0.0))
     db.session.commit()
 
+with app.app_context():
+    init_db()
+
 if __name__ == '__main__':
-    with app.app_context():
-        init_db()
-    app.run(host='0.0.0.0', port=5050)
+    app.run(debug=True)

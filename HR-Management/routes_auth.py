@@ -2,7 +2,6 @@ from flask import redirect, render_template, request, session, url_for, render_t
 import os
 from datetime import datetime
 
-# سلة الطلبات: هنخزن فيها أسماء المستخدمين (Usernames) اللي طالبين تغيير الباسورد
 RESET_REQUESTS = set()
 
 def setup_auth_routes(app, db, Employee, UPLOAD_FOLDER):
@@ -19,7 +18,7 @@ def setup_auth_routes(app, db, Employee, UPLOAD_FOLDER):
                 if user.role == 'Admin': return redirect(url_for('dashboard'))
                 else: return redirect(url_for('employee_dashboard'))
             
-            error_html = '<div style="color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin-bottom: 15px; border-radius: 5px; text-align: center; font-weight: bold; font-family: Arial;">❌ خطأ في اسم المستخدم أو كلمة المرور!</div>'
+            error_html = '<div style="color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin-bottom: 15px; border-radius: 5px; text-align: center; font-weight: bold; font-family: Arial;">❌ خطأ في البيانات!</div>'
             
         original_html = render_template('login.html')
         magic_button = f'''<div style="text-align: center; margin-top: 10px;">
@@ -40,9 +39,9 @@ def setup_auth_routes(app, db, Employee, UPLOAD_FOLDER):
             
             if user:
                 RESET_REQUESTS.add(username)
-                return '<script>alert("✅ تم إرسال طلب للإدارة (IT) لتغيير كلمة المرور. راجعهم قريباً!"); window.location.href="/";</script>'
+                return '<script>alert("✅ تم إرسال طلب للإدارة"); window.location.href="/";</script>'
             else:
-                return '<script>alert("❌ اسم المستخدم هذا غير مسجل لدينا!"); window.history.back();</script>'
+                return '<script>alert("❌ حساب غير مسجل!"); window.history.back();</script>'
 
         html_content = """
         <!DOCTYPE html>
@@ -51,10 +50,9 @@ def setup_auth_routes(app, db, Employee, UPLOAD_FOLDER):
         <body style="font-family: Arial; text-align: center; margin-top: 50px; background-color: #f4f4f4;">
             <div style="background: white; width: 420px; margin: auto; padding: 30px; border-radius: 10px; box-shadow: 0px 0px 15px #ccc;">
                 <h2 style="color: #6f42c1;">🛠️ طلب استعادة كلمة المرور</h2>
-                <p style="color: #666; font-size: 0.9em; font-weight: bold; margin-bottom: 20px;">أدخل اسم المستخدم وسنقوم بإرسال طلب لقسم الـ IT لتعيين كلمة مرور جديدة لك.</p>
                 <form method="POST" action="/forgot_password">
                     <input type="text" name="username" placeholder="اسم المستخدم (Username)" required style="width: 85%; margin-bottom: 20px; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"><br>
-                    <button type="submit" style="width: 90%; padding: 12px; background: #6f42c1; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold;">📩 إرسال الطلب للـ IT</button>
+                    <button type="submit" style="width: 90%; padding: 12px; background: #6f42c1; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold;">📩 إرسال الطلب</button>
                 </form>
                 <br><a href="/" style="display: inline-block; padding: 10px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-size: 0.85em;">🔙 رجوع لتسجيل الدخول</a>
             </div>

@@ -44,8 +44,8 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
                             stream.getTracks().forEach(track => track.stop());
                             const response = await fetch('/check_in', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: lat, lng: lng, photo: photoData }) });
                             const result = await response.json(); alert(result.message); if(response.ok) window.location.reload();
-                        } catch (err) { alert("مش قادر أفتح الكاميرا ❌ اتأكد إنك إديت سماح."); }
-                    }, (error) => { alert("لازم تدوس سماح للموقع (GPS) ❌"); });
+                        } catch (err) { alert("تعذر فتح الكاميرا ❌ يرجى التأكد من السماحيات."); }
+                    }, (error) => { alert("يجب تفعيل الموقع (GPS) ❌"); });
                 };
             }
             if(checkOutBtn) {
@@ -76,18 +76,32 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
 
     @app.route('/check_in', methods=['POST'])
     def check_in():
-        if not session.get('logged_in'): return '{"message": "سجل دخولك أولاً"}', 401
+        if not session.get('logged_in'): 
+            return '{"message": "سجل دخولك أولاً"}', 401, {'Content-Type': 'application/json'}
+            
         user_id, req_data = session.get('user_id'), request.get_json(silent=True) or request.form
-        try: u_lat, u_lng = float(req_data.get('lat', 0)), float(req_data.get('lng', 0))
-        except: return '{"message": "❌ خطأ في تحديد الموقع"}', 400
+        
+        try: 
+            u_lat, u_lng = float(req_data.get('lat', 0)), float(req_data.get('lng', 0))
+        except Exception: 
+            return '{"message": "❌ تعذر تحديد الموقع"}', 400, {'Content-Type': 'application/json'}
+            
         photo_data = req_data.get('photo')
-        if not photo_data: return '{"message": "❌ لم يتم التقاط صورة"}', 400
+        if not photo_data: 
+            return '{"message": "❌ لم يتم التقاط صورة"}', 400, {'Content-Type': 'application/json'}
+            
         try:
             now = datetime.now(); today_date = now.date()
-            if Attendance.query.filter_by(user_id=user_id, date=today_date).first(): return '{"message": "❌ سجلت حضور بالفعل اليوم"}', 400
+            if Attendance.query.filter_by(user_id=user_id, date=today_date).first(): 
+                return '{"message": "❌ سجلت حضور بالفعل اليوم"}', 400, {'Content-Type': 'application/json'}
+                
             st = db.session.get(Settings, 1)
-            if not st or st.lat is None or st.lng is None or st.radius is None: return '{"message": "❌ النطاق غير محدد في النظام"}', 400
-            if haversine(u_lat, u_lng, float(st.lat), float(st.lng)) > float(st.radius): return '{"message": "❌ أنت خارج النطاق المسموح"}', 400
+            if not st or st.lat is None or st.lng is None or st.radius is None: 
+                return '{"message": "❌ النطاق غير محدد"}', 400, {'Content-Type': 'application/json'}
+            
+            if haversine(u_lat, u_lng, float(st.lat), float(st.lng)) > float(st.radius): 
+                return '{"message": "❌ أنت خارج النطاق المسموح"}', 400, {'Content-Type': 'application/json'}
+            
             status_msg = 'داخل النطاق'
             if ',' in photo_data: photo_data = photo_data.split(',')[1]
             filename = f"checkin_{user_id}_{now.strftime('%H%M%S')}.jpg"; filepath = os.path.join(UPLOAD_FOLDER, filename)
@@ -95,23 +109,30 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
             
             emp = db.session.get(Employee, user_id)
             if face_recognition is not None and emp and emp.face_encoding:
-                known_encoding = np.array([float(x) for x in emp.face_encoding.split(",")])
+                clean_str = emp.face_encoding.replace('[', '').replace(']', '').replace('\n', '')
+                known_encoding = np.array([float(x.strip()) for x in clean_str.split(",") if x.strip()])
+                
                 current_image = face_recognition.load_image_file(filepath)
                 current_encodings = face_recognition.face_encodings(current_image)
-                if len(current_encodings) == 0: return '{"message": "❌ لم يتم العثور على وجه واضح"}', 400
+                if len(current_encodings) == 0: 
+                    return '{"message": "❌ لم يتم العثور على وجه واضح"}', 400, {'Content-Type': 'application/json'}
+                
                 match = face_recognition.compare_faces([known_encoding], current_encodings[0], tolerance=0.6)
-                if not match[0]: return '{"message": "❌ الوجه غير مطابق"}', 400
+                if not match[0]: 
+                    return '{"message": "❌ الوجه غير مطابق"}', 400, {'Content-Type': 'application/json'}
             
             db.session.add(Attendance(user_id=user_id, date=today_date, time=now.time().replace(microsecond=0), status=status_msg, photo=filename, lat=u_lat, lng=u_lng))
             db.session.commit()
-            return '{"message": "✅ تم تسجيل الحضور (' + status_msg + ')"}'
-        except Exception as e:
+            return '{"message": "✅ تم تسجيل الحضور"}', 200, {'Content-Type': 'application/json'}
+        except Exception:
             db.session.rollback()
-            return '{"message": "❌ خطأ في السيرفر"}', 500
+            return '{"message": "❌ حدث خطأ غير متوقع"}', 500, {'Content-Type': 'application/json'}
 
     @app.route('/check_out', methods=['POST'])
     def check_out():
-        if not session.get('logged_in'): return '{"message": "سجل دخولك أولاً"}', 401
+        if not session.get('logged_in'): 
+            return '{"message": "سجل دخولك أولاً"}', 401, {'Content-Type': 'application/json'}
+            
         user_id = session.get('user_id')
         now = datetime.now()
         today = now.date()
@@ -123,11 +144,11 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
                 record.check_out_time = now.time().replace(microsecond=0)
                 record.work_hours = round((now - start_dt).total_seconds() / 3600, 2)
                 db.session.commit()
-                return '{"message": "تم الانصراف بنجاح. الساعات: ' + str(record.work_hours) + ' ✅"}'
-            return '{"message": "لا يوجد سجل حضور مفتوح لك اليوم أو تم الانصراف مسبقاً ⚠️"}'
-        except Exception as e:
+                return '{"message": "تم الانصراف بنجاح. الساعات: ' + str(record.work_hours) + ' ✅"}', 200, {'Content-Type': 'application/json'}
+            return '{"message": "لا يوجد سجل مفتوح لك اليوم أو تم الانصراف مسبقاً ⚠️"}', 400, {'Content-Type': 'application/json'}
+        except Exception:
             db.session.rollback()
-            return '{"message": "خطأ تقني في السيرفر"}', 500
+            return '{"message": "❌ حدث خطأ غير متوقع"}', 500, {'Content-Type': 'application/json'}
 
     @app.route('/company_feed', methods=['GET', 'POST'])
     def company_feed():
@@ -139,7 +160,6 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
         comments = AnnouncementComment.query.order_by(AnnouncementComment.created_at.asc()).all()
         
         original_html = render_template('company_feed.html', news=news, comments=comments)
-        # تحويل الرابط للموظف عشان ما ينطردش
         if session.get('role') != 'Admin':
             original_html = original_html.replace('href="/dashboard"', 'href="/emp_dashboard"')
         
@@ -158,11 +178,9 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
                 db.session.add(LeaveRequest(user_id=user_id, leave_type=l_type.strip(), start_date=start, end_date=end, reason=reason.strip(), status="Pending", request_date=datetime.now()))
                 db.session.commit()
                 return '''<script>alert("✅ تم إرسال الطلب بنجاح!"); window.location.href="/emp_dashboard";</script>'''
-            except Exception as e: db.session.rollback(); return f'''<script>alert("❌ حدث خطأ"); window.history.back();</script>'''
+            except Exception: db.session.rollback(); return f'''<script>alert("❌ حدث خطأ"); window.history.back();</script>'''
         
         original_html = render_template('request_leave.html')
-        
-        # إضافة زرار العودة لصفحة الإجازات
         back_url = url_for('dashboard') if session.get('role') == 'Admin' else url_for('employee_dashboard')
         back_btn = f'''<div style="position: absolute; top: 20px; left: 20px; z-index: 9999;"><a href="{back_url}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">🔙 العودة للرئيسية</a></div>'''
         
@@ -174,8 +192,6 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
         payslips = PayrollHistory.query.filter_by(user_id=session.get('user_id')).order_by(PayrollHistory.issue_date.desc()).all()
         
         original_html = render_template('my_payslips.html', payslips=payslips)
-        
-        # تغيير رابط العودة للموظف عشان ما ينطردش
         if session.get('role') != 'Admin':
             original_html = original_html.replace('href="/dashboard"', 'href="/emp_dashboard"')
             
