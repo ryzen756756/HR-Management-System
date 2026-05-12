@@ -1,10 +1,7 @@
 from flask import redirect, render_template, request, session, url_for, render_template_string
-import os
-import base64
-from datetime import date, datetime
-import numpy as np
-
-from utils import haversine, parse_form_date
+import os, cv2, numpy as np
+from datetime import datetime
+from utils import haversine
 
 try:
     import face_recognition
@@ -16,183 +13,111 @@ def setup_employee_routes(app, db, Employee, Attendance, Settings, LeaveRequest,
     @app.route('/emp_dashboard')
     def employee_dashboard():
         if not session.get('logged_in'): return redirect(url_for('login'))
+        user, today = db.session.get(Employee, session.get('user_id')), datetime.now().date()
+        att = Attendance.query.filter_by(user_id=user.id, date=today).first()
         
-        user = db.session.get(Employee, session.get('user_id'))
-        original_html = render_template('employee_dashboard.html', name=session['user_name'], user=user)
+        msg = f'<div style="background:#d4edda; color:#155724; padding:15px; border-radius:10px; margin-bottom:10px; text-align:center; font-weight:bold;">✅ {request.args.get("msg")}</div>' if request.args.get('msg') else ""
         
-        original_html = original_html.replace('Attendance History', '').replace('My Profile', '')
-        original_html = original_html.replace('href="/my_attendance_history"', 'style="display:none;"')
-        original_html = original_html.replace('href="/my_profile"', 'style="display:none;"')
+        loc_script = "navigator.geolocation.getCurrentPosition(p=>{document.getElementById('lat').value=p.coords.latitude; document.getElementById('lng').value=p.coords.longitude;});"
         
-        magic_script = """
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const btns = document.querySelectorAll('button'); let checkInBtn = null; let checkOutBtn = null;
-            btns.forEach(b => { if(b.innerText.includes('حضور')) checkInBtn = b; if(b.innerText.includes('نصراف')) checkOutBtn = b; });
-            if(checkInBtn) {
-                checkInBtn.onclick = async function(e) {
-                    e.preventDefault(); if (!navigator.geolocation) { alert("متصفحك لا يدعم تحديد الموقع!"); return; }
-                    alert("جاري فتح الكاميرا والموقع... يرجى الانتظار والموافقة ⏳");
-                    navigator.geolocation.getCurrentPosition(async (position) => {
-                        const lat = position.coords.latitude; const lng = position.coords.longitude;
-                        try {
-                            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                            const video = document.createElement('video'); video.srcObject = stream;
-                            await new Promise(resolve => video.onloadedmetadata = resolve); await video.play();
-                            const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                            canvas.getContext('2d').drawImage(video, 0, 0); const photoData = canvas.toDataURL('image/jpeg');
-                            stream.getTracks().forEach(track => track.stop());
-                            const response = await fetch('/check_in', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: lat, lng: lng, photo: photoData }) });
-                            const result = await response.json(); alert(result.message); if(response.ok) window.location.reload();
-                        } catch (err) { alert("تعذر فتح الكاميرا ❌ يرجى التأكد من السماحيات."); }
-                    }, (error) => { alert("يجب تفعيل الموقع (GPS) ❌"); });
-                };
-            }
-            if(checkOutBtn) {
-                checkOutBtn.onclick = async function(e) {
-                    e.preventDefault(); const response = await fetch('/check_out', { method: 'POST' });
-                    const result = await response.json(); alert(result.message); if(response.ok) window.location.reload();
-                }
-            }
-        });
-        </script>
-        """
-        return original_html + magic_script
+        if not att:
+            btn = f'<form action="/check_in_python" method="POST"><input type="hidden" name="lat" id="lat"><input type="hidden" name="lng" id="lng"><button type="submit" onmouseover="{loc_script}" style="width:100%; padding:20px; background:#007bff; color:white; border:none; border-radius:12px; font-size:18px; font-weight:bold; cursor:pointer;">📷 تسجيل الحضور (GPS + كاميرا)</button></form>'
+        elif not att.check_out_time:
+            btn = '<form action="/check_out_python" method="POST"><button type="submit" style="width:100%; padding:20px; background:#dc3545; color:white; border:none; border-radius:12px; font-size:18px; font-weight:bold; cursor:pointer;">🚪 تسجيل الانصراف الآن</button></form>'
+        else:
+            btn = '<div style="padding:20px; background:#f8f9fa; border-radius:12px; text-align:center; color:#6c757d; font-weight:bold;">✨ وردية اليوم مكتملة بنجاح</div>'
 
-    @app.route('/my_profile')
-    def my_profile():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        user = db.session.get(Employee, session.get('user_id'))
-        html_content = render_template('my_profile.html', user=user)
-        html_content = html_content.replace('Email:', '').replace('Not set', '')
-        return html_content
+        ui = f'<div style="margin:20px 0;">{msg}{btn}<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;"><a href="/request_leave" style="background:#ffc107; padding:12px; border-radius:8px; text-decoration:none; text-align:center; color:black; font-weight:bold;">📅 الإجازات</a><a href="/my_payslips" style="background:#17a2b8; padding:12px; border-radius:8px; text-decoration:none; text-align:center; color:white; font-weight:bold;">💰 المرتبات</a></div><a href="/company_feed" style="display:block; margin-top:10px; background:white; color:#007bff; padding:12px; border-radius:8px; text-decoration:none; text-align:center; border:1px solid #007bff; font-weight:bold;">📢 أخبار الشركة</a><a href="/logout" style="display:block; margin-top:15px; background:#dc3545; color:white; padding:12px; border-radius:8px; text-decoration:none; text-align:center; font-weight:bold;">🚪 تسجيل الخروج</a></div>'
+        
+        orig = render_template('employee_dashboard.html', name=session['user_name'], user=user)
+        return render_template_string(orig.split('<button')[0] + ui + '</div></div></body></html>') if '<button' in orig else orig + ui
 
-    @app.route('/my_attendance_history')
-    def my_attendance_history():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        user_id = session.get('user_id')
-        logs = Attendance.query.filter_by(user_id=user_id).order_by(Attendance.date.desc(), Attendance.time.desc()).all()
-        return render_template('my_attendance_history.html', logs=logs)
-
-    @app.route('/check_in', methods=['POST'])
+    @app.route('/check_in_python', methods=['POST'])
     def check_in():
-        if not session.get('logged_in'): 
-            return '{"message": "سجل دخولك أولاً"}', 401, {'Content-Type': 'application/json'}
-            
-        user_id, req_data = session.get('user_id'), request.get_json(silent=True) or request.form
-        
-        try: 
-            u_lat, u_lng = float(req_data.get('lat', 0)), float(req_data.get('lng', 0))
-        except Exception: 
-            return '{"message": "❌ تعذر تحديد الموقع"}', 400, {'Content-Type': 'application/json'}
-            
-        photo_data = req_data.get('photo')
-        if not photo_data: 
-            return '{"message": "❌ لم يتم التقاط صورة"}', 400, {'Content-Type': 'application/json'}
-            
-        try:
-            now = datetime.now(); today_date = now.date()
-            if Attendance.query.filter_by(user_id=user_id, date=today_date).first(): 
-                return '{"message": "❌ سجلت حضور بالفعل اليوم"}', 400, {'Content-Type': 'application/json'}
-                
-            st = db.session.get(Settings, 1)
-            if not st or st.lat is None or st.lng is None or st.radius is None: 
-                return '{"message": "❌ النطاق غير محدد"}', 400, {'Content-Type': 'application/json'}
-            
-            if haversine(u_lat, u_lng, float(st.lat), float(st.lng)) > float(st.radius): 
-                return '{"message": "❌ أنت خارج النطاق المسموح"}', 400, {'Content-Type': 'application/json'}
-            
-            status_msg = 'داخل النطاق'
-            if ',' in photo_data: photo_data = photo_data.split(',')[1]
-            filename = f"checkin_{user_id}_{now.strftime('%H%M%S')}.jpg"; filepath = os.path.join(UPLOAD_FOLDER, filename)
-            with open(filepath, 'wb') as f: f.write(base64.b64decode(photo_data))
-            
-            emp = db.session.get(Employee, user_id)
-            if face_recognition is not None and emp and emp.face_encoding:
-                clean_str = emp.face_encoding.replace('[', '').replace(']', '').replace('\n', '')
-                known_encoding = np.array([float(x.strip()) for x in clean_str.split(",") if x.strip()])
-                
-                current_image = face_recognition.load_image_file(filepath)
-                current_encodings = face_recognition.face_encodings(current_image)
-                if len(current_encodings) == 0: 
-                    return '{"message": "❌ لم يتم العثور على وجه واضح"}', 400, {'Content-Type': 'application/json'}
-                
-                match = face_recognition.compare_faces([known_encoding], current_encodings[0], tolerance=0.6)
-                if not match[0]: 
-                    return '{"message": "❌ الوجه غير مطابق"}', 400, {'Content-Type': 'application/json'}
-            
-            db.session.add(Attendance(user_id=user_id, date=today_date, time=now.time().replace(microsecond=0), status=status_msg, photo=filename, lat=u_lat, lng=u_lng))
-            db.session.commit()
-            return '{"message": "✅ تم تسجيل الحضور"}', 200, {'Content-Type': 'application/json'}
-        except Exception:
-            db.session.rollback()
-            return '{"message": "❌ حدث خطأ غير متوقع"}', 500, {'Content-Type': 'application/json'}
-
-    @app.route('/check_out', methods=['POST'])
-    def check_out():
-        if not session.get('logged_in'): 
-            return '{"message": "سجل دخولك أولاً"}', 401, {'Content-Type': 'application/json'}
-            
         user_id = session.get('user_id')
-        now = datetime.now()
-        today = now.date()
+        u_lat, u_lng = request.form.get('lat'), request.form.get('lng')
+        
+        zone = db.session.get(Settings, 1)
+        if zone and u_lat and u_lng:
+            try:
+                dist = haversine(float(u_lat), float(u_lng), zone.lat, zone.lng)
+                if dist > zone.radius:
+                    return render_template_string(f'<script>alert("❌ أنت خارج النطاق! المسافة: {int(dist)} متر"); window.location.href="/emp_dashboard";</script>')
+            except: pass
+
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened(): return "خطأ في الكاميرا"
+        for _ in range(5): cap.read()
+        ret, frame = cap.read(); cap.release(); cv2.destroyAllWindows()
+        if not ret: return "فشل التقاط الصورة"
+        
+        fn = f"checkin_{user_id}_{datetime.now().strftime('%H%M%S')}.jpg"
+        fp = os.path.join(UPLOAD_FOLDER, fn); cv2.imwrite(fp, frame)
         
         try:
-            record = Attendance.query.filter_by(user_id=user_id, date=today).order_by(Attendance.id.desc()).first()
-            if record and not record.check_out_time:
-                start_dt = datetime.combine(today, record.time)
-                record.check_out_time = now.time().replace(microsecond=0)
-                record.work_hours = round((now - start_dt).total_seconds() / 3600, 2)
+            emp = db.session.get(Employee, user_id)
+            if face_recognition and emp.face_encoding:
+                clean = emp.face_encoding.replace('[', '').replace(']', '').replace('\n', '')
+                known = np.array([float(x.strip()) for x in clean.split(",") if x.strip()])
+                curr = face_recognition.face_encodings(face_recognition.load_image_file(fp))
+                if not curr or not face_recognition.compare_faces([known], curr[0], tolerance=0.6)[0]:
+                    return render_template_string('<script>alert("❌ الوجه غير مطابق!"); window.location.href="/emp_dashboard";</script>')
+            
+            db.session.add(Attendance(user_id=user_id, date=datetime.now().date(), time=datetime.now().time().replace(microsecond=0), status="تم التحقق", photo=fn))
+            db.session.commit(); return redirect(url_for('employee_dashboard', msg="تم تسجيل الحضور بنجاح"))
+        except: return "خطأ في التسجيل"
+
+    @app.route('/check_out_python', methods=['POST'])
+    def check_out():
+        now = datetime.now()
+        att = Attendance.query.filter_by(user_id=session.get('user_id'), date=now.date()).first()
+        if att:
+            att.check_out_time = now.time().replace(microsecond=0)
+            start_dt = datetime.combine(now.date(), att.time)
+            att.work_hours = round((now - start_dt).total_seconds() / 3600, 2)
+            db.session.commit()
+            return redirect(url_for('employee_dashboard', msg="تم تسجيل الانصراف وحساب الساعات"))
+        return redirect(url_for('employee_dashboard'))
+
+    @app.route('/request_leave', methods=['GET', 'POST'])
+    @app.route('/leave_request', methods=['GET', 'POST'])
+    def request_leave():
+        if not session.get('logged_in'): return redirect(url_for('login'))
+        
+        dash_link = '/dashboard' if session.get('role') == 'Admin' else '/emp_dashboard'
+        
+        if request.method == 'POST':
+            try:
+                start = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+                end = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date()
+                db.session.add(LeaveRequest(user_id=session['user_id'], leave_type=request.form.get('leave_type'), start_date=start, end_date=end, reason=request.form.get('reason'), status="Pending"))
                 db.session.commit()
-                return '{"message": "تم الانصراف بنجاح. الساعات: ' + str(record.work_hours) + ' ✅"}', 200, {'Content-Type': 'application/json'}
-            return '{"message": "لا يوجد سجل مفتوح لك اليوم أو تم الانصراف مسبقاً ⚠️"}', 400, {'Content-Type': 'application/json'}
-        except Exception:
-            db.session.rollback()
-            return '{"message": "❌ حدث خطأ غير متوقع"}', 500, {'Content-Type': 'application/json'}
+                if session.get('role') == 'Admin':
+                    return render_template_string(f'<script>alert("✅ تم إرسال الطلب"); window.location.href="{dash_link}";</script>')
+                return redirect(url_for('employee_dashboard', msg="تم إرسال طلب الإجازة"))
+            except: return "خطأ في البيانات"
+            
+        html = render_template('request_leave.html')
+        return html.replace('href="/dashboard"', f'href="{dash_link}"').replace('href="/"', f'href="{dash_link}"').replace('href="/emp_dashboard"', f'href="{dash_link}"')
+
+    @app.route('/my_payslips')
+    def my_payslips():
+        if not session.get('logged_in'): return redirect(url_for('login'))
+        payslips = PayrollHistory.query.filter_by(user_id=session['user_id']).all()
+        html = render_template('my_payslips.html', payslips=payslips)
+        
+        dash_link = '/dashboard' if session.get('role') == 'Admin' else '/emp_dashboard'
+        return html.replace('href="/dashboard"', f'href="{dash_link}"').replace('href="/"', f'href="{dash_link}"').replace('href="/emp_dashboard"', f'href="{dash_link}"')
 
     @app.route('/company_feed', methods=['GET', 'POST'])
+    @app.route('/admin/company_feed', methods=['GET', 'POST'])
     def company_feed():
         if not session.get('logged_in'): return redirect(url_for('login'))
         if request.method == 'POST':
             db.session.add(AnnouncementComment(announcement_id=request.form.get('announcement_id'), user_name=session['user_name'], comment=request.form.get('comment')))
             db.session.commit()
-        news = Announcement.query.order_by(Announcement.created_at.desc()).all()
-        comments = AnnouncementComment.query.order_by(AnnouncementComment.created_at.asc()).all()
-        
-        original_html = render_template('company_feed.html', news=news, comments=comments)
-        if session.get('role') != 'Admin':
-            original_html = original_html.replace('href="/dashboard"', 'href="/emp_dashboard"')
-        
-        return original_html
-
-    @app.route('/request_leave', methods=['GET', 'POST'])
-    def request_leave():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        user_id = session.get('user_id')
-        if request.method == 'POST':
-            try:
-                l_type, s_date, e_date, reason = request.form.get('leave_type'), request.form.get('start_date'), request.form.get('end_date'), request.form.get('reason')
-                if not l_type or not s_date or not e_date or not reason: return '''<script>alert("❌ الرجاء ملء جميع البيانات"); window.history.back();</script>'''
-                start, end = parse_form_date(s_date), parse_form_date(e_date)
-                if start > end: return '''<script>alert("❌ البداية لا يمكن أن تكون بعد النهاية!"); window.history.back();</script>'''
-                db.session.add(LeaveRequest(user_id=user_id, leave_type=l_type.strip(), start_date=start, end_date=end, reason=reason.strip(), status="Pending", request_date=datetime.now()))
-                db.session.commit()
-                return '''<script>alert("✅ تم إرسال الطلب بنجاح!"); window.location.href="/emp_dashboard";</script>'''
-            except Exception: db.session.rollback(); return f'''<script>alert("❌ حدث خطأ"); window.history.back();</script>'''
-        
-        original_html = render_template('request_leave.html')
-        back_url = url_for('dashboard') if session.get('role') == 'Admin' else url_for('employee_dashboard')
-        back_btn = f'''<div style="position: absolute; top: 20px; left: 20px; z-index: 9999;"><a href="{back_url}" style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">🔙 العودة للرئيسية</a></div>'''
-        
-        return original_html + back_btn
-
-    @app.route('/my_payslips')
-    def my_payslips():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        payslips = PayrollHistory.query.filter_by(user_id=session.get('user_id')).order_by(PayrollHistory.issue_date.desc()).all()
-        
-        original_html = render_template('my_payslips.html', payslips=payslips)
-        if session.get('role') != 'Admin':
-            original_html = original_html.replace('href="/dashboard"', 'href="/emp_dashboard"')
             
-        return original_html
+        html = render_template('company_feed.html', news=Announcement.query.all(), comments=AnnouncementComment.query.all())
+        
+        dash_link = '/dashboard' if session.get('role') == 'Admin' else '/emp_dashboard'
+        return html.replace('href="/dashboard"', f'href="{dash_link}"').replace('href="/"', f'href="{dash_link}"').replace('href="/emp_dashboard"', f'href="{dash_link}"')

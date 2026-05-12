@@ -32,6 +32,3 @@ def month_range(today=None):
     else:
         end = date(today.year, today.month + 1, 1)
     return start, end
-
-def parse_form_date(date_str):
-    return datetime.strptime(date_str, '%Y-%m-%d').date()
